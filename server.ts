@@ -5,7 +5,16 @@ import { graphqlUploadExpress } from "graphql-upload";
 import { ExtendedUser } from "./modules/user";
 import { schema } from './src/nexusSchema'
 import { prisma } from "./modules/prisma";
+import { createServer } from 'http';
+import { createServer as createServerSSL } from 'http';
 
+import { ApolloServerPluginDrainHttpServer } from "apollo-server-core";
+
+import { WebSocketServer } from 'ws';
+
+import { useServer } from 'graphql-ws/lib/use/ws';
+import path from "path";
+import * as fs from "fs";
 
 async function getUser() {
 
@@ -28,11 +37,33 @@ async function startApolloServer() {
 
     app.use(express.static('public'));
 
-    const httpServer = http.createServer(app);
+    const httpServer = createServer(app);
+
+    const wsServer = new WebSocketServer({
+
+        // This is the `httpServer` we created in a previous step.
+
+        server: httpServer,
+
+        // Pass a different path here if your ApolloServer serves at
+
+        // a different path.
+
+        path: '/graphql',
+
+    });
+
+
+    // Hand in the schema we just created and have the
+
+    // WebSocketServer start listening.
+
+    const serverCleanup = useServer({ schema }, wsServer);
+
 
     const server = new ApolloServer({
         schema,
-
+        csrfPrevention: true,
         context: async ({ req }) => ({
             user: await (await getUser()).user,
             prisma
@@ -40,8 +71,40 @@ async function startApolloServer() {
 
         plugins: [
 
+            // Proper shutdown for the HTTP server.
+
+            ApolloServerPluginDrainHttpServer({ httpServer }),
+
+
+            // Proper shutdown for the WebSocket server.
+
+            {
+
+                async serverWillStart() {
+
+                    return {
+
+                        async drainServer() {
+
+                            await serverCleanup.dispose();
+
+                        },
+
+                    };
+
+                },
+
+            },
+
         ],
     });
+
+
+
+
+
+
+
 
     await server.start();
 
@@ -51,10 +114,22 @@ async function startApolloServer() {
             limit: "100mb",
         },
     });
-    await new Promise<void>((resolve) =>
-        httpServer.listen({ port: 4000 }, resolve)
-    );
-    console.log(`🚀 Server ready at http://localhost:4000${server.graphqlPath}`);
+
+    // Now that our HTTP server is fully set up, we can listen to it.
+
+    httpServer.listen(4000, () => {
+
+        console.log(
+
+            `🚀 Server is now running on http://localhost:${4000}${server.graphqlPath}`,
+
+        );
+
+
+
+    });
+
+
 }
 
 startApolloServer();
