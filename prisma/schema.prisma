@@ -1,51 +1,306 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
-generator client {
-  provider        = "prisma-client-js"
+enum ContentType {
+  TEXT
+  IMAGE
+  VIDEO
+  AUDIO
 }
 
-// models examples
-model User {
-  id        Int       @id @default(autoincrement())
-  createdAt DateTime  @default(now())
-  email     String    @unique
-  name      String?
-  password  String
-  posts     Post[]
-  group     Group?    @relation(fields: [groupId], onDelete: SetNull, references: [id])
-  groupId   Int?
-  comments  Comment[]
-}
+model Province {
+  id   String @id @default(uuid())
+  name String
 
-model Post {
-  id        Int       @id @default(autoincrement())
-  published Boolean   @default(false)
-  title     String
-  author    User?     @relation(fields: [authorId], onDelete: Cascade, references: [id])
-  authorId  Int?
-  comments  Comment[]
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-}
-
-model Comment {
-  id        Int      @id @default(autoincrement())
-  contain   String
-  post      Post     @relation(fields: [postId], onDelete: Cascade, references: [id])
-  postId    Int
-  author    User?    @relation(fields: [authorId], onDelete: SetNull, references: [id])
-  authorId  Int?
+  cities    City[]
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
-
-model Group {
-  id        Int      @id @default(autoincrement())
-  name      String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime @default(now())
   users     User[]
+  School    School[]
+}
+
+model City {
+  id         String   @id @default(uuid())
+  name       String
+  provinceId String
+  province   Province @relation(fields: [provinceId], references: [id])
+
+  users User[]
+
+  School School[]
+}
+
+enum Roles {
+  STUDENT
+  TEACHER
+  PARENT
+}
+
+enum IdentityFileType {
+  KTP
+  KK
+  SIM
+  PASSPORT
+  OTHER
+}
+
+model IdentityFile {
+  id     String           @id @default(uuid())
+  name   String
+  url    String
+  type   IdentityFileType
+  number String
+  userId String
+  user   User             @relation(fields: [userId], references: [id])
+}
+
+model User {
+
+  id          String @id @default(uuid())
+  name        String
+  email       String
+  password    String
+  phoneNumber String
+  address     String
+
+  profilePicturePath String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  nisn String?
+  nrg  String? // nomor registerasi guru
+
+
+
+  provinceId String
+  province   Province @relation(fields: [provinceId], references: [id])
+
+
+  cityId String
+  city   City   @relation(fields: [cityId], references: [id])
+
+  isAdmin  Boolean @default(false)
+  isBimbel Boolean @default(false)
+
+  role Roles
+
+  balance Float @default(0)
+
+  emailVerifiedAt       DateTime?
+  phoneNumberVerifiedAt DateTime?
+  bimbelApprovedAt      DateTime?
+
+
+  identityFiles     IdentityFile[]
+  questions         Question[]
+  examinations      Exam[]
+  examsessions      ExamSession[]
+  privateChats      PrivateChat[]
+  myPrivateChats    PrivateChat[]      @relation("myPrivateChats")
+  classrooms        Classroom[]
+  classroomStudents ClassroomStudent[]
+  notifications     Notification[]
+}
+
+model Notification {
+  id String @id @default(uuid())
+
+  picturePath     String?
+  title           String
+  message         String
+  isRead          Boolean @default(false)
+  followUpContext String?
+  followUpData    String?
+  userId          String
+  user            User    @relation(fields: [userId], references: [id])
+
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model School {
+  id   String @id @default(uuid())
+  name String
+
+  npsn String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  classrooms Classroom[]
+  levels     Int[]
+
+  type String
+
+  address String
+
+  logoPath   String?
+  bannerPath String?
+
+  provinceId String
+  province   Province @relation(fields: [provinceId], references: [id])
+
+
+  cityId String
+  city   City   @relation(fields: [cityId], references: [id])
+
+}
+
+model Classroom {
+  id   String @id @default(uuid())
+  name String
+
+  schoolId String?
+  school   School? @relation(fields: [schoolId], references: [id])
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  students ClassroomStudent[]
+
+  level Int @default(1)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+}
+
+enum ClassroomStudentStatus {
+  ACTIVE
+  BANNED
+}
+
+model ClassroomStudent {
+  id          String     @id @default(uuid())
+  userId      String
+  user        User       @relation(fields: [userId], references: [id])
+  classroom   Classroom? @relation(fields: [classroomId], references: [id])
+  classroomId String?
+
+  status ClassroomStudentStatus @default(ACTIVE)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model PrivateChat {
+  id String @id @default(uuid())
+
+  fromId String
+  from   User   @relation("myPrivateChats", fields: [fromId], references: [id])
+
+  toId String
+  to   User   @relation(fields: [toId], references: [id])
+
+  contentType ContentType
+  content     String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Exam {
+  id     String @id @default(uuid())
+  name   String
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  examquestions ExamQuestion[]
+
+  examAnswers ExamAnswer[]
+}
+
+model ExamSession {
+
+  id   String @id @default(uuid())
+  name String
+
+  openAt  DateTime?
+  closeAt DateTime?
+
+  maxPlayer Int?
+  password  String?
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  examAnswers ExamAnswer[]
+}
+
+model ExamQuestion {
+
+  id         String   @id @default(uuid())
+  questionId String
+  question   Question @relation(fields: [questionId], references: [id])
+
+  examId String
+  exam   Exam   @relation(fields: [examId], references: [id])
+
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+}
+
+model ExamAnswer {
+  id String @id @default(uuid())
+
+  examId String
+  exam   Exam   @relation(fields: [examId], references: [id])
+
+  grade             Float   @default(0)
+  finishCalculation Boolean @default(false)
+
+  examSessionId String?
+  examSession   ExamSession? @relation(fields: [examSessionId], references: [id])
+
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum QuestionType {
+  MULTIPLE_CHOICE
+  TRUE_OR_FALSE
+  FILL_IN_THE_BLANK
+  MULTIPLE_ANSWER
+}
+
+model Question {
+  id   String @id @default(uuid())
+  name String
+
+  type QuestionType
+
+  contentType ContentType
+  content     String
+
+  answerType ContentType
+  answers    String[]
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  originalQuestionId String?
+  originalQuestion   Question? @relation("childrens", fields: [originalQuestionId], references: [id])
+
+
+  childrens Question[] @relation("childrens")
+
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @default(now())
+  examquestions ExamQuestion[]
 }
