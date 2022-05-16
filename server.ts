@@ -2,17 +2,14 @@ import { ApolloServer } from "apollo-server-express";
 import express from "express";
 import http from "http";
 import { graphqlUploadExpress } from "graphql-upload";
-import { ExtendedUser } from "./user";
-import { Prisma, PrismaClient } from "@prisma/client";
-
+import { ExtendedUser } from "./modules/user";
 import { schema } from './src/nexusSchema'
-
-const prisma = new PrismaClient();
+import { prisma } from "./modules/prisma";
 
 
 async function getUser() {
 
-    const user = await prisma.user.findUnique({
+    const user = prisma.user.findUnique({
         where: {
             id: "ca34ca93-961c-4941-bc8a-2171b0dcfcbf"
         }
@@ -20,26 +17,25 @@ async function getUser() {
 
     if (!user) return null;
 
-    return new ExtendedUser(user)
+    return new ExtendedUser(await user)
 
 }
 
 async function startApolloServer() {
     const app = express();
+
     app.use(graphqlUploadExpress({ maxFileSize: 10000000, maxFiles: 10 }));
+
+    app.use(express.static('public'));
+
     const httpServer = http.createServer(app);
 
     const server = new ApolloServer({
         schema,
-        // formatError: (e) => {
-        // return e;
-        // },
-
 
         context: async ({ req }) => ({
-            // This part is up to you!
-            // currentUser: await getUserFromAuthHeader(req.headers.authorization),
-            user: await getUser()
+            user: await (await getUser()).user,
+            prisma
         }),
 
         plugins: [
@@ -48,6 +44,7 @@ async function startApolloServer() {
     });
 
     await server.start();
+
     server.applyMiddleware({
         app,
         bodyParserConfig: {
